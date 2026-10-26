@@ -8,7 +8,9 @@ from __future__ import annotations
 
 import getpass
 import json
+import os
 import pathlib
+import stat
 import sys
 import urllib.parse
 import urllib.request
@@ -18,11 +20,28 @@ GRAPH = "https://graph.facebook.com/v21.0"
 
 def _api(path: str, **params: str) -> dict:
     url = f"{GRAPH}/{path.lstrip('/')}?" + urllib.parse.urlencode(params)
-    with urllib.request.urlopen(url) as r:
-        body = json.loads(r.read())
+    request = urllib.request.Request(url)
+    try:
+        opener = urllib.request.build_opener(_NoRedirect())
+        with opener.open(request, timeout=20) as r:
+            raw_body = r.read(1_000_001)
+            if len(raw_body) > 1_000_000:
+                raise SystemExit("Graph API response is too large")
+            body = json.loads(raw_body)
+    except SystemExit:
+        raise
+    except Exception as exc:
+        raise SystemExit("Graph API request failed. Check the connection and credentials.") from exc
     if "error" in body:
-        raise SystemExit(f"Graph API error: {body['error']}")
+        raise SystemExit(
+            "Graph API rejected the token setup request. Check scopes and credentials."
+        )
     return body
+
+
+class _NoRedirect(urllib.request.HTTPRedirectHandler):
+    def redirect_request(self, req, fp, code, msg, headers, newurl):
+        return None
 
 
 def _prompt(label: str, secret: bool = False) -> str:
@@ -98,10 +117,13 @@ def main() -> None:
         f"IG_GRAPH_HOST=graph.facebook.com\n"
     )
     if env_path.exists():
-        backup = env_path.with_suffix(".env.bak")
-        backup.write_text(env_path.read_text())
-        print(f"      existing .env backed up to {backup}")
-    env_path.write_text(contents)
+        raise SystemExit(".env already exists. Move it to a safe location before setup.")
+    flags = os.O_WRONLY | os.O_CREAT | os.O_EXCL
+    fd = os.open(env_path, flags, stat.S_IRUSR | stat.S_IWUSR)
+    with os.fdopen(fd, "w") as env_file:
+        env_file.write(contents)
+    if os.name == "posix":
+        os.chmod(env_path, stat.S_IRUSR | stat.S_IWUSR)
     print(f"      wrote {env_path.resolve()}")
 
     print("\nAll set. Test it with:")

@@ -117,7 +117,13 @@ Edit `~/.config/Claude/claude_desktop_config.json` (Linux) or
 }
 ```
 
-Restart Claude Desktop. You should see 24 tools under the `instagram` server.
+Restart Claude Desktop. Read tools work by default. Write tools need an explicit
+local opt-in. Add `IG_ALLOW_WRITES=true` to enable publishing, replies, comment
+visibility changes, and DMs. Comment deletion also needs
+`IG_ALLOW_DESTRUCTIVE=true`.
+
+These settings must come from local configuration. A model request cannot enable
+them. Keep them unset for read-only use.
 
 ## Available tools
 
@@ -199,6 +205,28 @@ python -m venv .venv && source .venv/bin/activate
 pip install -e ".[dev]"
 pytest
 ```
+
+Run the server in read-only mode:
+
+```bash
+IG_USER_ID=YOUR_NUMERIC_ACCOUNT_ID IG_ACCESS_TOKEN=YOUR_TOKEN instagram-mcp
+```
+
+Enable authorized writes in a trusted local shell:
+
+```bash
+IG_USER_ID=YOUR_NUMERIC_ACCOUNT_ID IG_ACCESS_TOKEN=YOUR_TOKEN \\
+  IG_ALLOW_WRITES=true instagram-mcp
+```
+
+Enable comment deletion only when needed:
+
+```bash
+IG_ALLOW_WRITES=true IG_ALLOW_DESTRUCTIVE=true instagram-mcp
+```
+
+The token helper creates `.env` with mode `0600` on Unix. It does not overwrite
+an existing `.env`. Move an existing file to a protected backup before setup.
 
 ## License
 
